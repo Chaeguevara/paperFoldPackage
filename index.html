@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Design paper folding patterns with 3D visualization. Export to SVG for cutting or STL for 3D printing.">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Paper Fold Package Designer">
+  <meta property="og:description" content="Create paper folding patterns and export to SVG or STL">
+  <meta property="og:image" content="/paperFoldPackage/og-image.jpg">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" type="image/svg+xml" href="/paperFoldPackage/favicon.svg">
+  <title>Paper Fold Package Designer</title>
+
+  <!-- Google AdSense (replace with your client ID) -->
+  <!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script> -->
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- SPA Redirect Handler for GitHub Pages -->
+  <script>
+    (function(){
+      var redirect = sessionStorage.redirect;
+      delete sessionStorage.redirect;
+      if (redirect && redirect !== location.href) {
+        history.replaceState(null, null, redirect.replace(location.origin, ''));
+      }
+    })();
+  </script>
+
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
