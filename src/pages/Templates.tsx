@@ -11,7 +11,7 @@ interface TemplateWithShape extends Template {
   };
 }
 
-const templates: TemplateWithShape[] = [
+export const templates: TemplateWithShape[] = [
   {
     id: 'box-simple',
     name: 'Simple Box',

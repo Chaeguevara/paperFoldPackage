@@ -3,6 +3,7 @@ import type { PatternConfig, ShapeType } from '@/types';
 interface ConfigPanelProps {
   config: PatternConfig;
   onChange: (config: PatternConfig) => void;
+  hideShapeType?: boolean;
 }
 
 const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
@@ -13,7 +14,7 @@ const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
   { value: 'envelope', label: 'Envelope' },
 ];
 
-export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
+export function ConfigPanel({ config, onChange, hideShapeType = false }: ConfigPanelProps) {
   const handleChange = (key: keyof PatternConfig, value: number | string) => {
     onChange({ ...config, [key]: value });
   };
@@ -22,21 +23,23 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
     <div className="config-panel">
       <h3>Pattern Configuration</h3>
 
-      <div className="config-field">
-        <label htmlFor="shapeType">Shape Type</label>
-        <select
-          id="shapeType"
-          value={config.shapeType}
-          onChange={(e) => handleChange('shapeType', e.target.value)}
-          className="config-select"
-        >
-          {SHAPE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!hideShapeType && (
+        <div className="config-field">
+          <label htmlFor="shapeType">Shape Type</label>
+          <select
+            id="shapeType"
+            value={config.shapeType}
+            onChange={(e) => handleChange('shapeType', e.target.value)}
+            className="config-select"
+          >
+            {SHAPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="config-field">
         <label htmlFor="width">Width (cm)</label>

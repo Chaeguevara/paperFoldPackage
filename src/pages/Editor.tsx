@@ -1,9 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DualScene } from '@/core/Scene';
 import { ConfigPanel, ExportButtons } from '@/ui';
 import { downloadSVG } from '@/export';
 import { generatePattern } from '@/core/geometry';
 import type { PatternConfig } from '@/types';
+import { templates } from './Templates';
 
 const defaultConfig: PatternConfig = {
   shapeType: 'box',
@@ -109,7 +111,21 @@ function generatePatternSVG(config: PatternConfig): string {
 }
 
 export function Editor() {
+  const [searchParams] = useSearchParams();
   const [config, setConfig] = useState<PatternConfig>(defaultConfig);
+  const [isTemplate, setIsTemplate] = useState(false);
+
+  // Load template config from URL parameter
+  useEffect(() => {
+    const templateId = searchParams.get('template');
+    if (templateId) {
+      const template = templates.find(t => t.id === templateId);
+      if (template) {
+        setConfig(template.defaultConfig);
+        setIsTemplate(true);
+      }
+    }
+  }, [searchParams]);
 
   const handleExportSVG = useCallback(() => {
     const svgContent = generatePatternSVG(config);
@@ -124,7 +140,7 @@ export function Editor() {
   return (
     <div className="editor">
       <div className="editor-sidebar">
-        <ConfigPanel config={config} onChange={setConfig} />
+        <ConfigPanel config={config} onChange={setConfig} hideShapeType={isTemplate} />
         <ExportButtons onExportSVG={handleExportSVG} onExportSTL={handleExportSTL} />
       </div>
 

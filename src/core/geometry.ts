@@ -567,6 +567,199 @@ export function generatePrismPattern(config: PatternConfig): FoldPattern {
 }
 
 // =============================================================================
+// CYLINDER PATTERN - Wrapped Rectangle with Tab/Slit Closure
+// =============================================================================
+
+/**
+ * Generate a true cylinder pattern (not polygonal approximation).
+ * Uses a wrapped rectangle with vertical tab/slit for glue-free closure.
+ *
+ * Layout:
+ *    ┌──────────────────┐
+ *    │   TOP CIRCLE     │  ← Top cap with tabs
+ *    ├──────────────────┤
+ *    │                  │
+ *    │   BODY (rect)    │  ← Main cylinder body
+ *    │                  │
+ *    ├──────────────────┤
+ *    │  BOTTOM CIRCLE   │  ← Bottom cap with tabs
+ *    └──────────────────┘
+ */
+export function generateCylinderPattern(config: PatternConfig): FoldPattern {
+  const { width, height } = config;
+  const radius = width / 2;
+  const circumference = 2 * Math.PI * radius;
+  const tabDepth = radius * 0.15;
+
+  const vertices: THREE.Vector3[] = [];
+  const foldLines: FoldLine[] = [];
+  const faces: number[][] = [];
+
+  // ==========================================================================
+  // MAIN BODY (Rectangle that wraps around)
+  // ==========================================================================
+
+  const bodyWidth = circumference;
+  const bodyHeight = height;
+
+  // Body rectangle corners
+  const bodyBL = v2(0, 0);
+  const bodyBR = v2(bodyWidth, 0);
+  const bodyTR = v2(bodyWidth, bodyHeight);
+  const bodyTL = v2(0, bodyHeight);
+
+  vertices.push(bodyBL, bodyBR, bodyTR, bodyTL);
+  faces.push([0, 1, 2, 3]);
+
+  // ==========================================================================
+  // CLOSURE TAB/SLIT (Vertical edge for wrapping)
+  // ==========================================================================
+
+  // Tab on right edge (wraps around to left)
+  const tabHeight = bodyHeight * 0.8; // 80% of height for better hold
+  const tabStart = bodyHeight * 0.1; // Start 10% from bottom
+  const tabEnd = tabStart + tabHeight;
+
+  const tabBL = v2(bodyWidth, tabStart);
+  const tabBR = v2(bodyWidth + tabDepth, tabStart);
+  const tabTR = v2(bodyWidth + tabDepth, tabEnd);
+  const tabTL = v2(bodyWidth, tabEnd);
+
+  // Tab with taper
+  const taperRatio = 0.7;
+  const taperInset = (tabHeight * (1 - taperRatio)) / 2;
+
+  const tabTipBL = v2(bodyWidth + tabDepth, tabStart + taperInset);
+  const tabTipTL = v2(bodyWidth + tabDepth, tabEnd - taperInset);
+
+  // Tab fold line (mountain - folds outward for insertion)
+  foldLines.push(fold(tabBL, tabTL, 'mountain'));
+
+  // Tab cut lines
+  foldLines.push(fold(tabBL, tabTipBL, 'cut'));
+  foldLines.push(fold(tabTipBL, tabTipTL, 'cut'));
+  foldLines.push(fold(tabTipTL, tabTL, 'cut'));
+
+  // Slit on left edge (receives tab)
+  const slitStart = v2(0, tabStart + taperInset);
+  const slitEnd = v2(0, tabEnd - taperInset);
+  foldLines.push(fold(slitStart, slitEnd, 'cut'));
+
+  // ==========================================================================
+  // TOP CIRCLE (with radial tabs for attachment)
+  // ==========================================================================
+
+  const topCenterX = bodyWidth / 2;
+  const topCenterY = bodyHeight + radius + tabDepth;
+
+  // Approximate circle with 12-sided polygon for foldability
+  const numSegments = 12;
+  const topCircleVertices: THREE.Vector3[] = [];
+
+  for (let i = 0; i < numSegments; i++) {
+    const angle = (i * 2 * Math.PI) / numSegments;
+    const x = topCenterX + radius * Math.cos(angle);
+    const y = topCenterY + radius * Math.sin(angle);
+    topCircleVertices.push(v2(x, y));
+  }
+
+  // Circle perimeter cuts
+  for (let i = 0; i < numSegments; i++) {
+    const next = (i + 1) % numSegments;
+    foldLines.push(fold(topCircleVertices[i], topCircleVertices[next], 'cut'));
+  }
+
+  // Radial tabs from circle to body
+  const topAttachY = bodyHeight;
+  for (let i = 0; i < numSegments; i++) {
+    const segmentX = (i * bodyWidth) / numSegments;
+    const attachPoint = v2(segmentX, topAttachY);
+
+    // Mountain fold at attachment line
+    foldLines.push(
+      fold(
+        v2(segmentX, topAttachY),
+        v2(segmentX + bodyWidth / numSegments, topAttachY),
+        'mountain'
+      )
+    );
+
+    // Tabs extend from body edge to circle
+    const tabMidX = segmentX + bodyWidth / (2 * numSegments);
+    const circlePoint = topCircleVertices[i];
+
+    // Valley fold from body to tab
+    foldLines.push(fold(attachPoint, circlePoint, 'valley'));
+  }
+
+  // ==========================================================================
+  // BOTTOM CIRCLE (similar to top)
+  // ==========================================================================
+
+  const bottomCenterX = bodyWidth / 2;
+  const bottomCenterY = -(radius + tabDepth);
+
+  const bottomCircleVertices: THREE.Vector3[] = [];
+
+  for (let i = 0; i < numSegments; i++) {
+    const angle = (i * 2 * Math.PI) / numSegments;
+    const x = bottomCenterX + radius * Math.cos(angle);
+    const y = bottomCenterY + radius * Math.sin(angle);
+    bottomCircleVertices.push(v2(x, y));
+  }
+
+  // Circle perimeter cuts
+  for (let i = 0; i < numSegments; i++) {
+    const next = (i + 1) % numSegments;
+    foldLines.push(fold(bottomCircleVertices[i], bottomCircleVertices[next], 'cut'));
+  }
+
+  // Radial tabs
+  const bottomAttachY = 0;
+  for (let i = 0; i < numSegments; i++) {
+    const segmentX = (i * bodyWidth) / numSegments;
+    const attachPoint = v2(segmentX, bottomAttachY);
+
+    foldLines.push(
+      fold(
+        v2(segmentX, bottomAttachY),
+        v2(segmentX + bodyWidth / numSegments, bottomAttachY),
+        'mountain'
+      )
+    );
+
+    const circlePoint = bottomCircleVertices[i];
+    foldLines.push(fold(attachPoint, circlePoint, 'valley'));
+  }
+
+  // ==========================================================================
+  // OUTER PERIMETER CUTS
+  // ==========================================================================
+
+  // Body sides
+  foldLines.push(fold(bodyBL, bodyBR, 'cut'));
+  foldLines.push(fold(bodyTL, bodyTR, 'cut'));
+
+  // Left edge (has slit already defined above)
+  const leftTopOfSlit = v2(0, tabEnd - taperInset);
+  const leftBottomOfSlit = v2(0, tabStart + taperInset);
+
+  foldLines.push(fold(bodyBL, leftBottomOfSlit, 'cut'));
+  foldLines.push(fold(leftTopOfSlit, bodyTL, 'cut'));
+
+  // Right edge (except tab area)
+  foldLines.push(fold(bodyBR, v2(bodyWidth, tabStart), 'cut'));
+  foldLines.push(fold(v2(bodyWidth, tabEnd), bodyTR, 'cut'));
+
+  return {
+    name: 'Cylinder (Glue-Free)',
+    vertices,
+    foldLines,
+    faces,
+  };
+}
+
+// =============================================================================
 // PATTERN FACTORY
 // =============================================================================
 
@@ -584,8 +777,7 @@ export function generatePattern(config: PatternConfig): FoldPattern {
     case 'prism':
       return generatePrismPattern(config);
     case 'cylinder':
-      // Cylinders are challenging for glue-free; use prism approximation
-      return generatePrismPattern({ ...config, shapeType: 'prism' });
+      return generateCylinderPattern(config);
     default:
       return generateBoxPattern(config);
   }
