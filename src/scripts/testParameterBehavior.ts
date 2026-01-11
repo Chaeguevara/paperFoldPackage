@@ -9,7 +9,6 @@ import {
   validateAllShapes,
   formatAllShapesReport,
   detectPyramidEdgeCase,
-  validateParameterBehavior,
 } from '../core/parameterValidator';
 import type { PatternConfig } from '../types';
 

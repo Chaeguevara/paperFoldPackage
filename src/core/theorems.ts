@@ -38,6 +38,7 @@ export const ASSEMBLY_MECHANICS = {
       box: 0.15,
       pyramid: 0.12,
       prism: 0.15,
+      cylinder: 0.15,
       envelope: 0.10,
     },
     depthRange: [0.08, 0.2] as const,  // Fraction of min dimension

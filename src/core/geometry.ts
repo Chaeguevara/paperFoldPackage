@@ -621,8 +621,6 @@ export function generateCylinderPattern(config: PatternConfig): FoldPattern {
   const tabEnd = tabStart + tabHeight;
 
   const tabBL = v2(bodyWidth, tabStart);
-  const tabBR = v2(bodyWidth + tabDepth, tabStart);
-  const tabTR = v2(bodyWidth + tabDepth, tabEnd);
   const tabTL = v2(bodyWidth, tabEnd);
 
   // Tab with taper
@@ -684,11 +682,8 @@ export function generateCylinderPattern(config: PatternConfig): FoldPattern {
       )
     );
 
-    // Tabs extend from body edge to circle
-    const tabMidX = segmentX + bodyWidth / (2 * numSegments);
+    // Valley fold from body to circle
     const circlePoint = topCircleVertices[i];
-
-    // Valley fold from body to tab
     foldLines.push(fold(attachPoint, circlePoint, 'valley'));
   }
 
