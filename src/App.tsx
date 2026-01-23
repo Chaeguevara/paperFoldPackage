@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { Home, Editor, Templates } from '@/pages';
+import { Home, Editor, Templates, Learn, MaekawaTheorem } from '@/pages';
 import { MetaTags, StructuredData, appSchema } from '@/seo';
 import './App.css';
 
@@ -15,6 +15,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className="nav-links">
             <Link to="/templates">Templates</Link>
             <Link to="/editor">Editor</Link>
+            <Link to="/learn">Learn</Link>
           </div>
         </nav>
       </header>
@@ -50,6 +51,8 @@ export function App() {
           <Route path="/" element={<Home />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/editor" element={<Editor />} />
+          <Route path="/learn" element={<Learn />} />
+          <Route path="/learn/maekawa" element={<MaekawaTheorem />} />
         </Routes>
       </Layout>
     </BrowserRouter>

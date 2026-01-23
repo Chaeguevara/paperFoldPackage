@@ -373,6 +373,204 @@ body {
   text-transform: capitalize;
 }
 
+/* Learn Page */
+.learn {
+  padding: 2rem 0;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.learn-header {
+  margin-bottom: 2rem;
+}
+
+.learn-header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.learn-header p {
+  color: var(--color-text-muted);
+}
+
+.learn-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.learn-breadcrumb a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.learn-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+/* Theorem List */
+.theorem-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.theorem-card {
+  display: block;
+  background: var(--color-surface);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  text-decoration: none;
+  color: inherit;
+  transition: all var(--transition);
+}
+
+.theorem-card:hover {
+  border-color: var(--color-primary);
+  transform: translateX(4px);
+}
+
+.theorem-card h3 {
+  margin: 0.5rem 0 0.25rem;
+}
+
+.theorem-subtitle {
+  color: var(--color-text-muted);
+  font-family: 'Courier New', monospace;
+  font-size: 1.1rem;
+}
+
+/* Theorem Article */
+.theorem-article header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.theorem-article h1 {
+  margin: 0.5rem 0 1rem;
+  font-size: 2rem;
+}
+
+.theorem-statement {
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+}
+
+.theorem-formula {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  text-align: center;
+  font-size: 2rem;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  margin: 1rem 0;
+  color: var(--color-primary);
+}
+
+.theorem-formula-sm {
+  font-size: 1.2rem;
+  padding: 1rem;
+}
+
+.theorem-category {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-surface-light);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+/* Theorem Sections */
+.theorem-section {
+  margin-bottom: 2rem;
+}
+
+.theorem-section h2 {
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.theorem-section p {
+  margin-bottom: 0.75rem;
+  line-height: 1.7;
+}
+
+/* Diagram */
+.theorem-diagram {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1rem 0;
+}
+
+.diagram-svg {
+  width: 100%;
+  max-width: 400px;
+  display: block;
+  margin: 0 auto;
+}
+
+.diagram-caption {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+
+/* Corollaries */
+.corollary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.corollary {
+  background: var(--color-surface);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--color-primary);
+}
+
+.corollary h4 {
+  margin-bottom: 0.25rem;
+  font-size: 0.95rem;
+}
+
+.corollary p {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 0;
+}
+
+/* References */
+.reference-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reference-list li {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .editor {
