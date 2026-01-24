@@ -25,6 +25,57 @@ export const KAWASAKI_JUSTIN = {
 } as const;
 
 /**
+ * Maekawa's Theorem parameters
+ * Reference: docs/theorems/maekawa.md
+ */
+export const MAEKAWA = {
+  id: 'maekawa',
+  differenceAbsolute: 2,  // |M - V| = 2
+  minFolds: 4,            // Minimum folds for theorem to apply
+  tolerance: 0.001,       // Vertex proximity tolerance
+} as const;
+
+// =============================================================================
+// VERTEX TYPE DEFINITIONS
+// =============================================================================
+
+/**
+ * Represents the M/V assignment type around a vertex.
+ * The sequence is the circular order of fold types (sorted by angle from +X axis).
+ */
+export interface VertexTypeInfo {
+  vertex: THREE.Vector3;
+  degree: number;              // Number of folds meeting at vertex
+  sequence: ('M' | 'V' | 'C')[];  // Circular M/V/C sequence (C=cut, excluded from counting)
+  mountains: number;
+  valleys: number;
+  maekawaDifference: number;   // |M - V|
+  maekawaSatisfied: boolean;
+  isInterior: boolean;         // Interior vs perimeter vertex
+  angles: number[];            // Consecutive angles between folds (radians)
+}
+
+/**
+ * Result of vertex validity check (layer ordering via crimping)
+ */
+export interface VertexValidityResult {
+  valid: boolean;
+  vertexType: VertexTypeInfo;
+  crimpSteps: CrimpStep[];
+  failureReason?: string;
+}
+
+/**
+ * A single step in the crimping reduction algorithm
+ */
+export interface CrimpStep {
+  step: number;
+  crimpedAngle: number;
+  foldTypes: [string, string];  // The two fold types that were crimped
+  remainingDegree: number;
+}
+
+/**
  * Assembly Mechanics parameters
  * Reference: docs/theorems/assembly-mechanics.md
  */
@@ -246,6 +297,307 @@ export function validateKawasakiJustin(pattern: FoldPattern): ValidationResult {
 }
 
 // =============================================================================
+// VERTEX TYPE AND VALIDITY
+// =============================================================================
+
+/**
+ * Compute the vertex type (M/V sequence) at a single vertex.
+ * Folds are sorted by angle from +X axis in the XZ plane.
+ */
+export function getVertexType(
+  vertex: THREE.Vector3,
+  connectedLines: FoldLine[]
+): VertexTypeInfo {
+  // Compute direction vectors and pair with fold types
+  const foldData = connectedLines.map(line => {
+    const other = line.start.distanceTo(vertex) < 0.001 ? line.end : line.start;
+    const dir = other.clone().sub(vertex).normalize();
+    const angle = Math.atan2(dir.z, dir.x);
+    return { angle, type: line.type };
+  });
+
+  // Sort by angle (counter-clockwise from +X)
+  foldData.sort((a, b) => a.angle - b.angle);
+
+  // Build M/V/C sequence
+  const sequence: ('M' | 'V' | 'C')[] = foldData.map(f => {
+    if (f.type === 'mountain') return 'M';
+    if (f.type === 'valley') return 'V';
+    return 'C';
+  });
+
+  // Calculate consecutive angles between sorted folds
+  const angles: number[] = [];
+  for (let i = 0; i < foldData.length; i++) {
+    const next = (i + 1) % foldData.length;
+    let diff = foldData[next].angle - foldData[i].angle;
+    if (diff <= 0) diff += 2 * Math.PI;
+    angles.push(diff);
+  }
+
+  // Count M and V (excluding cuts)
+  const mountains = sequence.filter(s => s === 'M').length;
+  const valleys = sequence.filter(s => s === 'V').length;
+  const maekawaDifference = Math.abs(mountains - valleys);
+
+  // A vertex is interior if it has >= 4 folds (excluding cuts)
+  const mvCount = mountains + valleys;
+  const isInterior = mvCount >= MAEKAWA.minFolds;
+
+  return {
+    vertex: vertex.clone(),
+    degree: connectedLines.length,
+    sequence,
+    mountains,
+    valleys,
+    maekawaDifference,
+    maekawaSatisfied: !isInterior || maekawaDifference === MAEKAWA.differenceAbsolute,
+    isInterior,
+    angles,
+  };
+}
+
+/**
+ * Validate Maekawa's theorem across an entire pattern.
+ * Checks |M - V| = 2 at every interior vertex.
+ */
+export function validateMaekawa(pattern: FoldPattern): ValidationResult {
+  const result: ValidationResult = {
+    valid: true,
+    theoremId: MAEKAWA.id,
+    errors: [],
+    warnings: [],
+    details: {},
+  };
+
+  const vertices = extractVertices(pattern.foldLines);
+  const vertexTypes: VertexTypeInfo[] = [];
+
+  vertices.forEach(vertex => {
+    const connected = findConnectedLines(vertex, pattern.foldLines);
+    const vertexType = getVertexType(vertex, connected);
+    vertexTypes.push(vertexType);
+
+    if (!vertexType.isInterior) {
+      result.warnings.push(
+        `Vertex (${vertex.x.toFixed(2)}, ${vertex.z.toFixed(2)}): perimeter vertex (${vertexType.degree} folds, exempt)`
+      );
+      return;
+    }
+
+    if (!vertexType.maekawaSatisfied) {
+      result.valid = false;
+      result.errors.push(
+        `Vertex (${vertex.x.toFixed(2)}, ${vertex.z.toFixed(2)}) violates Maekawa: ` +
+        `M=${vertexType.mountains}, V=${vertexType.valleys}, ` +
+        `|M-V|=${vertexType.maekawaDifference} (must be 2). ` +
+        `Type: [${vertexType.sequence.join('')}]`
+      );
+    }
+  });
+
+  result.details = {
+    totalVertices: vertices.length,
+    interiorVertices: vertexTypes.filter(v => v.isInterior).length,
+    validVertices: vertexTypes.filter(v => v.maekawaSatisfied).length,
+    vertexTypes: vertexTypes.map(v => ({
+      position: `(${v.vertex.x.toFixed(2)}, ${v.vertex.z.toFixed(2)})`,
+      sequence: v.sequence.join(''),
+      M: v.mountains,
+      V: v.valleys,
+      satisfied: v.maekawaSatisfied,
+      interior: v.isInterior,
+    })),
+  };
+
+  return result;
+}
+
+/**
+ * Check vertex validity using the crimping algorithm.
+ *
+ * The crimping algorithm tests whether an M/V assignment can fold flat
+ * without layer self-intersection:
+ * 1. Find the smallest angle sector between consecutive folds
+ * 2. If bounding folds are opposite types (M and V), "crimp" them
+ *    (remove both folds and merge the adjacent angle sectors)
+ * 3. Repeat until only 2 folds remain (valid) or smallest sector
+ *    is bounded by same-type folds (invalid)
+ *
+ * This implements a necessary condition from Justin's theorem for layer ordering.
+ */
+export function checkVertexValidity(vertexType: VertexTypeInfo): VertexValidityResult {
+  const crimpSteps: CrimpStep[] = [];
+
+  // Only check interior vertices with M/V folds
+  const mvSequence = vertexType.sequence.filter(s => s !== 'C');
+  const mvAngles = [...vertexType.angles];
+
+  if (mvSequence.length < 4) {
+    return {
+      valid: true,
+      vertexType,
+      crimpSteps,
+      failureReason: undefined,
+    };
+  }
+
+  // First check Maekawa as a prerequisite
+  if (!vertexType.maekawaSatisfied) {
+    return {
+      valid: false,
+      vertexType,
+      crimpSteps,
+      failureReason: `Maekawa violated: |M-V|=${vertexType.maekawaDifference} (must be 2)`,
+    };
+  }
+
+  // Working copies for the crimping reduction
+  const types = [...mvSequence];
+  const angles = [...mvAngles];
+  let step = 0;
+
+  while (types.length > 2) {
+    // Find the smallest angle
+    let minIdx = 0;
+    let minAngle = angles[0];
+    for (let i = 1; i < angles.length; i++) {
+      if (angles[i] < minAngle) {
+        minAngle = angles[i];
+        minIdx = i;
+      }
+    }
+
+    // The smallest angle is between folds[minIdx] and folds[(minIdx+1) % n]
+    const leftIdx = minIdx;
+    const rightIdx = (minIdx + 1) % types.length;
+    const leftType = types[leftIdx];
+    const rightType = types[rightIdx];
+
+    // Check if the bounding folds are opposite types
+    if (leftType === rightType) {
+      // Same type bounds the smallest angle — cannot crimp, invalid
+      return {
+        valid: false,
+        vertexType,
+        crimpSteps,
+        failureReason:
+          `Cannot crimp: smallest angle (${(minAngle * 180 / Math.PI).toFixed(1)}°) ` +
+          `bounded by same fold types (${leftType}, ${rightType}) at step ${step + 1}. ` +
+          `Remaining sequence: [${types.join('')}]`,
+      };
+    }
+
+    // Crimp: remove both folds, merge angle sectors
+    step++;
+    crimpSteps.push({
+      step,
+      crimpedAngle: minAngle,
+      foldTypes: [leftType, rightType],
+      remainingDegree: types.length - 2,
+    });
+
+    // Merge: the crimped sector gets absorbed into the adjacent sector
+    // Remove the two folds and combine angles:
+    // angle[left-1] + angle[right] - angle[minIdx] becomes the new sector
+    const prevIdx = (leftIdx - 1 + angles.length) % angles.length;
+    const nextAngleIdx = rightIdx < angles.length ? rightIdx : 0;
+
+    if (types.length === 3) {
+      // Special case: 3 folds -> 1 fold (shouldn't happen if Maekawa holds)
+      types.splice(0, types.length);
+      angles.splice(0, angles.length);
+      break;
+    }
+
+    // Calculate new merged angle
+    const newAngle = angles[prevIdx] + angles[nextAngleIdx] - minAngle;
+
+    // Remove the two folds and their shared angle
+    // We need to be careful with circular indexing
+    if (rightIdx > leftIdx) {
+      types.splice(rightIdx, 1);
+      types.splice(leftIdx, 1);
+      angles.splice(rightIdx, 1);
+      angles[leftIdx > 0 ? leftIdx - 1 : angles.length - 1] = newAngle;
+      angles.splice(leftIdx, 1);
+    } else {
+      // rightIdx wrapped around (rightIdx === 0, leftIdx === types.length - 1)
+      types.splice(leftIdx, 1);
+      types.splice(0, 1);
+      angles.splice(leftIdx, 1);
+      if (angles.length > 0) {
+        angles[angles.length - 1] = newAngle;
+        angles.splice(0, 1);
+      }
+    }
+  }
+
+  return {
+    valid: true,
+    vertexType,
+    crimpSteps,
+  };
+}
+
+/**
+ * Validate vertex types and layer ordering for an entire pattern.
+ * Combines Maekawa check with crimping-based validity.
+ */
+export function validateVertexValidity(pattern: FoldPattern): ValidationResult {
+  const result: ValidationResult = {
+    valid: true,
+    theoremId: 'vertex-validity',
+    errors: [],
+    warnings: [],
+    details: {},
+  };
+
+  const vertices = extractVertices(pattern.foldLines);
+  const validityResults: VertexValidityResult[] = [];
+
+  vertices.forEach(vertex => {
+    const connected = findConnectedLines(vertex, pattern.foldLines);
+    const vertexType = getVertexType(vertex, connected);
+
+    if (!vertexType.isInterior) {
+      return; // Skip perimeter vertices
+    }
+
+    const validity = checkVertexValidity(vertexType);
+    validityResults.push(validity);
+
+    if (!validity.valid) {
+      result.valid = false;
+      result.errors.push(
+        `Vertex (${vertex.x.toFixed(2)}, ${vertex.z.toFixed(2)}) ` +
+        `type [${vertexType.sequence.join('')}] is invalid: ${validity.failureReason}`
+      );
+    } else if (validity.crimpSteps.length > 0) {
+      result.warnings.push(
+        `Vertex (${vertex.x.toFixed(2)}, ${vertex.z.toFixed(2)}) ` +
+        `type [${vertexType.sequence.join('')}] valid after ${validity.crimpSteps.length} crimp(s)`
+      );
+    }
+  });
+
+  result.details = {
+    interiorVertices: validityResults.length,
+    validVertices: validityResults.filter(v => v.valid).length,
+    invalidVertices: validityResults.filter(v => !v.valid).length,
+    results: validityResults.map(v => ({
+      position: `(${v.vertexType.vertex.x.toFixed(2)}, ${v.vertexType.vertex.z.toFixed(2)})`,
+      type: v.vertexType.sequence.join(''),
+      valid: v.valid,
+      crimpSteps: v.crimpSteps.length,
+      failureReason: v.failureReason,
+    })),
+  };
+
+  return result;
+}
+
+// =============================================================================
 // ASSEMBLY MECHANICS VALIDATION
 // =============================================================================
 
@@ -381,6 +733,8 @@ export function validatePattern(
 ): PatternValidation {
   const theoremResults: ValidationResult[] = [
     validateKawasakiJustin(pattern),
+    validateMaekawa(pattern),
+    validateVertexValidity(pattern),
     validateTabDesign(config),
     validateThickness(config),
     validateTabSlitPairing(pattern),
@@ -438,14 +792,21 @@ export function formatValidationReport(validation: PatternValidation): string {
 export default {
   // Constants
   KAWASAKI_JUSTIN,
+  MAEKAWA,
   ASSEMBLY_MECHANICS,
 
   // Validation functions
   validatePattern,
   validateKawasakiJustin,
+  validateMaekawa,
+  validateVertexValidity,
   validateTabDesign,
   validateThickness,
   validateTabSlitPairing,
+
+  // Vertex type utilities
+  getVertexType,
+  checkVertexValidity,
 
   // Utilities
   formatValidationReport,
