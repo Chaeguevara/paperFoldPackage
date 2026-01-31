@@ -20,6 +20,12 @@ const theorems: TheoremCard[] = [
     subtitle: 'M/V sequence + crimping',
     category: 'flat-foldability',
   },
+  {
+    id: 'foldability-lab',
+    title: 'Foldability Lab',
+    subtitle: 'Interactive single-vertex explorer',
+    category: 'interactive',
+  },
 ];
 
 export function Learn() {
