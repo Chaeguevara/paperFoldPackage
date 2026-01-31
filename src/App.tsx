@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { Home, Editor, Templates, Learn, MaekawaTheorem, VertexTypeValidity } from '@/pages';
+import { Home, Editor, Templates, Learn, MaekawaTheorem, VertexTypeValidity, FoldabilityLab } from '@/pages';
 import { MetaTags, StructuredData, appSchema } from '@/seo';
 import './App.css';
 
@@ -54,6 +54,7 @@ export function App() {
           <Route path="/learn" element={<Learn />} />
           <Route path="/learn/maekawa" element={<MaekawaTheorem />} />
           <Route path="/learn/vertex-type" element={<VertexTypeValidity />} />
+          <Route path="/learn/foldability-lab" element={<FoldabilityLab />} />
         </Routes>
       </Layout>
     </BrowserRouter>

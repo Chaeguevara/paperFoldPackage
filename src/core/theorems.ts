@@ -598,6 +598,203 @@ export function validateVertexValidity(pattern: FoldPattern): ValidationResult {
 }
 
 // =============================================================================
+// STANDALONE SINGLE-VERTEX ANALYSIS (for interactive tools)
+// =============================================================================
+
+/**
+ * Result of analyzing a single vertex from raw sector angles.
+ * Used by interactive visualization tools that don't have Three.js FoldLine objects.
+ */
+export interface SingleVertexAnalysis {
+  sectorAngles: number[];           // Sector angles in degrees
+  sumEven: number;                  // Sum of even-indexed sectors (degrees)
+  sumOdd: number;                   // Sum of odd-indexed sectors (degrees)
+  kawasakiSatisfied: boolean;
+  kawasakiError: number;            // |sumEven - 180| in degrees
+  validAssignments: string[][];     // All valid M/V assignments
+  totalMaekawaAssignments: number;  // Count of Maekawa-satisfying assignments
+  totalValidAssignments: number;    // Count that also pass crimping
+}
+
+/**
+ * Check Kawasaki's theorem from raw sector angles (degrees).
+ * Returns whether alternating angle sums each equal 180°.
+ */
+export function checkKawasakiFromAngles(
+  sectorAnglesDeg: number[],
+  tolerance: number = 1.0
+): { satisfied: boolean; sumEven: number; sumOdd: number; error: number } {
+  let sumEven = 0;
+  let sumOdd = 0;
+  sectorAnglesDeg.forEach((angle, i) => {
+    if (i % 2 === 0) sumEven += angle;
+    else sumOdd += angle;
+  });
+  const error = Math.abs(sumEven - 180);
+  return {
+    satisfied: error < tolerance,
+    sumEven,
+    sumOdd,
+    error,
+  };
+}
+
+/**
+ * Generate all possible M/V assignments for n creases that satisfy Maekawa (|M-V|=2).
+ */
+function generateMaekawaAssignments(n: number): string[][] {
+  const assignments: string[][] = [];
+  // For |M-V|=2: either M=n/2+1,V=n/2-1 or M=n/2-1,V=n/2+1
+  // Minimum count of either type needed for a valid assignment
+  const minTypeCount = Math.floor(n / 2) - 1;
+
+  function generate(current: string[], mCount: number, vCount: number) {
+    if (current.length === n) {
+      if (Math.abs(mCount - vCount) === 2) {
+        assignments.push([...current]);
+      }
+      return;
+    }
+    const remaining = n - current.length;
+    // Prune: can we still reach a valid count?
+    if (mCount + remaining < minTypeCount) return;
+    if (vCount + remaining < minTypeCount) return;
+
+    generate([...current, 'M'], mCount + 1, vCount);
+    generate([...current, 'V'], mCount, vCount + 1);
+  }
+
+  generate([], 0, 0);
+  return assignments;
+}
+
+/**
+ * Check if a specific M/V assignment is valid via crimping, given sector angles in degrees.
+ */
+export function checkCrimpingFromAngles(
+  sectorAnglesDeg: number[],
+  assignment: string[]
+): { valid: boolean; crimpSteps: CrimpStep[]; failureReason?: string } {
+  const types = [...assignment];
+  const angles = sectorAnglesDeg.map(a => a * Math.PI / 180); // Convert to radians for internal math
+  const crimpSteps: CrimpStep[] = [];
+  let step = 0;
+
+  if (types.length < 4) {
+    return { valid: true, crimpSteps };
+  }
+
+  while (types.length > 2) {
+    // Find smallest angle sector
+    let minIdx = 0;
+    let minAngle = angles[0];
+    for (let i = 1; i < angles.length; i++) {
+      if (angles[i] < minAngle) {
+        minAngle = angles[i];
+        minIdx = i;
+      }
+    }
+
+    const leftIdx = minIdx;
+    const rightIdx = (minIdx + 1) % types.length;
+    const leftType = types[leftIdx];
+    const rightType = types[rightIdx];
+
+    if (leftType === rightType) {
+      return {
+        valid: false,
+        crimpSteps,
+        failureReason:
+          `Smallest angle (${(minAngle * 180 / Math.PI).toFixed(1)}°) ` +
+          `bounded by same types (${leftType},${rightType}). Sequence: [${types.join('')}]`,
+      };
+    }
+
+    step++;
+    crimpSteps.push({
+      step,
+      crimpedAngle: minAngle,
+      foldTypes: [leftType, rightType],
+      remainingDegree: types.length - 2,
+    });
+
+    // Merge angles
+    const prevIdx = (leftIdx - 1 + angles.length) % angles.length;
+    const nextAngleIdx = rightIdx;
+    const newAngle = angles[prevIdx] + angles[nextAngleIdx] - minAngle;
+
+    if (types.length === 3) {
+      types.splice(0, types.length);
+      angles.splice(0, angles.length);
+      break;
+    }
+
+    if (rightIdx > leftIdx) {
+      types.splice(rightIdx, 1);
+      types.splice(leftIdx, 1);
+      angles.splice(rightIdx, 1);
+      angles[leftIdx > 0 ? leftIdx - 1 : angles.length - 1] = newAngle;
+      angles.splice(leftIdx, 1);
+    } else {
+      types.splice(leftIdx, 1);
+      types.splice(0, 1);
+      angles.splice(leftIdx, 1);
+      if (angles.length > 0) {
+        angles[angles.length - 1] = newAngle;
+        angles.splice(0, 1);
+      }
+    }
+  }
+
+  return { valid: true, crimpSteps };
+}
+
+/**
+ * Full single-vertex analysis from raw crease angles (degrees, measured from +X axis).
+ * Computes sector angles, checks Kawasaki, finds all valid M/V assignments via crimping.
+ */
+export function analyzeSingleVertex(creaseAnglesDeg: number[]): SingleVertexAnalysis {
+  // Sort crease angles
+  const sorted = [...creaseAnglesDeg].sort((a, b) => a - b);
+
+  // Compute sector angles
+  const sectorAngles: number[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const next = (i + 1) % sorted.length;
+    let diff = sorted[next] - sorted[i];
+    if (diff <= 0) diff += 360;
+    sectorAngles.push(diff);
+  }
+
+  // Check Kawasaki
+  const kawasaki = checkKawasakiFromAngles(sectorAngles);
+
+  // Find valid assignments
+  const maekawaAssignments = generateMaekawaAssignments(sorted.length);
+  const validAssignments: string[][] = [];
+
+  if (kawasaki.satisfied) {
+    for (const assignment of maekawaAssignments) {
+      const result = checkCrimpingFromAngles(sectorAngles, assignment);
+      if (result.valid) {
+        validAssignments.push(assignment);
+      }
+    }
+  }
+
+  return {
+    sectorAngles,
+    sumEven: kawasaki.sumEven,
+    sumOdd: kawasaki.sumOdd,
+    kawasakiSatisfied: kawasaki.satisfied,
+    kawasakiError: kawasaki.error,
+    validAssignments,
+    totalMaekawaAssignments: maekawaAssignments.length,
+    totalValidAssignments: validAssignments.length,
+  };
+}
+
+// =============================================================================
 // ASSEMBLY MECHANICS VALIDATION
 // =============================================================================
 
@@ -807,6 +1004,11 @@ export default {
   // Vertex type utilities
   getVertexType,
   checkVertexValidity,
+
+  // Single-vertex analysis (for interactive tools)
+  analyzeSingleVertex,
+  checkKawasakiFromAngles,
+  checkCrimpingFromAngles,
 
   // Utilities
   formatValidationReport,
